@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">
+  <rect width="60" height="60" rx="8" fill="#002d38"/>
+  <text x="30" y="22" font-family="Times,sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Aula</text>
+  <text x="30" y="34" font-family="Times,sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Virtual</text>
+  <text x="30" y="46" font-family="Times,sans-serif" font-size="10" font-weight="bold" fill="#d43921" text-anchor="middle">UMU</text>
+</svg>

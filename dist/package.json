@@ -1,0 +1,62 @@
+{
+    "name": "@notmrmario/n8n-nodes-um",
+    "version": "0.1.0",
+    "description": "n8n Universidad de Murcia integration",
+    "license": "MIT",
+    "homepage": "",
+    "keywords": [
+        "n8n-community-node-package"
+    ],
+    "author": {
+        "name": "notmrmario",
+        "email": "nachohdgamingpro@gmail.com"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/notmrmario/n8n-nodes-um.git"
+    },
+    "scripts": {
+        "build": "n8n-node build",
+        "build:watch": "tsc --watch",
+        "dev": "n8n-node dev",
+        "lint": "n8n-node lint",
+        "lint:fix": "n8n-node lint --fix",
+        "release": "n8n-node release",
+        "prepublishOnly": "n8n-node prerelease"
+    },
+    "files": [
+        "dist"
+    ],
+    "n8n": {
+        "n8nNodesApiVersion": 1,
+        "strict": true,
+        "credentials": [
+            "dist/credentials/UmApi.credentials.js"
+        ],
+        "nodes": [
+            "dist/nodes/UmTokens/UmTokens.node.js",
+            "dist/nodes/AulaVirtual/AulaVirtual.node.js",
+            "dist/nodes/FiltroNovedades/FiltroNovedades.node.js",
+            "dist/nodes/FiltroTipo/FiltroTipo.node.js"
+        ]
+    },
+    "devDependencies": {
+        "@n8n/node-cli": "*",
+        "@types/he": "^1.2.3",
+        "@types/luxon": "^3.7.1",
+        "@types/turndown": "^5.0.6",
+        "eslint": "9.32.0",
+        "prettier": "3.6.2",
+        "release-it": "^19.0.4",
+        "typescript": "5.9.2"
+    },
+    "peerDependencies": {
+        "n8n-workflow": "*"
+    },
+    "dependencies": {
+        "he": "^1.2.0",
+        "luxon": "^3.7.2",
+        "node-html-parser": "^7.1.0",
+        "turndown": "^7.2.4"
+    }
+}

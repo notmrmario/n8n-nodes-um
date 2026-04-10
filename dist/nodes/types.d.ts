@@ -1,0 +1,70 @@
+import type { DateTimeMaybeValid } from "luxon";
+export declare const dateFormat = "d MMM yyyy H:mm";
+export declare const SakaiToolType: {
+    readonly "sakai.announcements": "Anuncios";
+    readonly "sakai.schedule": "Calendario";
+    readonly "sakai.resources": "Recursos";
+    readonly "sakai.iframe": "ContenidoWeb";
+    readonly "sakai.assignment.grades": "Tareas";
+    readonly "sakai.samigo": "Examenes";
+    readonly "sakai.gradebookng": "Calificaciones";
+    readonly "sakai.messages": "MensajesPrivados";
+    readonly "sakai.chat": "Chat";
+    readonly "sakai.forums": "Foros";
+    readonly "sakai.site.roster2": "Participantes";
+    readonly "sakai.sitestats": "Estadisticas";
+    readonly "sakai.umugdocenteng": "GuiasDocentes";
+    readonly "sakai.umucorrige": "TestPresenciales";
+    readonly "sakai.umullamamientos": "Llamamientos";
+    readonly "sakai.umuactas": "Actas";
+    readonly "sakai.umualumnado": "AlumnadoOficial";
+    readonly "sakai.sections": "InformacionGrupos";
+    readonly "sakai.opencast": "VideoClases";
+    readonly "sakai.zoomlti": "VideoConferencia";
+    readonly "sakai.siteinfo": "InformacionSitio";
+};
+export type Endpoint = "ninguno" | "herramientas" | "notificaciones" | "sitios" | "tareas" | "tarea_url";
+export type EventoFiltro = "notificaciones" | "tareas";
+export type Sitio = {
+    image: string | null;
+    pinned: boolean;
+    siteId: string;
+    title: string;
+    tools: {
+        title: string;
+        hasAlerts: boolean;
+        url: string;
+        iconClass: string;
+        id: keyof typeof SakaiToolType;
+    }[];
+    url: string;
+};
+export type Tarea = {
+    titulo: string;
+    url: string;
+    estado: string;
+    inicio: DateTimeMaybeValid;
+    fin: DateTimeMaybeValid;
+};
+export type Herramienta = {
+    titulo: string;
+    url: string;
+    id: string;
+};
+export type Notificacion = {
+    id: number;
+    fromUser: string;
+    toUser: string;
+    event: string;
+    ref: string;
+    title: string;
+    siteId: string;
+    url: string;
+    eventDate: number;
+    deferred: boolean;
+    viewed: boolean;
+    tool: keyof typeof SakaiToolType;
+    fromDisplayName: string;
+    formattedEventDate: string | DateTimeMaybeValid;
+    siteTitle: string;
+};
