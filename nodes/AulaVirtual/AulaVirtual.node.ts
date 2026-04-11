@@ -214,8 +214,9 @@ export class AulaVirtual implements INodeType {
 					const clean_res = he.decode(tarea_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
 
 					const tarea = parseTarea(clean_res);
-
-					results.push([{ json: tarea }]);
+					
+					if (!results[0]) results[0] = [];
+					results[0].push({ json: tarea });
 					break;
 				}
 				case 'anuncio_url': {
@@ -231,7 +232,8 @@ export class AulaVirtual implements INodeType {
 					// results.push([{ json: { clean_res } }])
 					const anuncio = parseAnuncio(clean_res);
 
-					results.push([{ json: anuncio }]);
+					if (!results[0]) results[0] = [];
+					results[0].push({ json: anuncio });
 					break;
 				}
 			}

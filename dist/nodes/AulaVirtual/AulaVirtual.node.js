@@ -201,7 +201,9 @@ class AulaVirtual {
                     });
                     const clean_res = he_1.default.decode(tarea_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
                     const tarea = (0, utils_1.parseTarea)(clean_res);
-                    results.push([{ json: tarea }]);
+                    if (!results[0])
+                        results[0] = [];
+                    results[0].push({ json: tarea });
                     break;
                 }
                 case 'anuncio_url': {
@@ -212,7 +214,9 @@ class AulaVirtual {
                     });
                     const clean_res = he_1.default.decode(anuncio_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
                     const anuncio = (0, utils_1.parseAnuncio)(clean_res);
-                    results.push([{ json: anuncio }]);
+                    if (!results[0])
+                        results[0] = [];
+                    results[0].push({ json: anuncio });
                     break;
                 }
             }
