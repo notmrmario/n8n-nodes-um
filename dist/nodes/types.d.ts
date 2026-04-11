@@ -23,7 +23,7 @@ export declare const SakaiToolType: {
     readonly "sakai.zoomlti": "VideoConferencia";
     readonly "sakai.siteinfo": "InformacionSitio";
 };
-export type Endpoint = "ninguno" | "herramientas" | "notificaciones" | "sitios" | "tareas" | "tarea_url";
+export type Endpoint = "ninguno" | "anuncio_url" | "herramientas" | "notificaciones" | "sitios" | "tareas" | "tarea_url";
 export type EventoFiltro = "notificaciones" | "tareas";
 export type Sitio = {
     image: string | null;

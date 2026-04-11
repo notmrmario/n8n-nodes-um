@@ -28,6 +28,7 @@ export const SakaiToolType = {
 
 export type Endpoint =
     | "ninguno"
+    | "anuncio_url"
     | "herramientas"
     | "notificaciones"
     | "sitios"

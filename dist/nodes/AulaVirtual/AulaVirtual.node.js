@@ -48,6 +48,7 @@ class AulaVirtual {
                     type: "options",
                     default: undefined,
                     options: [
+                        { name: "Anuncio Por Url", value: "anuncio_url" },
                         { name: "Herramientas Del Sitio", value: "herramientas" },
                         { name: "Notificaciones", value: "notificaciones" },
                         { name: "Sitios", value: "sitios" },
@@ -88,6 +89,14 @@ class AulaVirtual {
                     required: true,
                 },
                 {
+                    displayName: "URL Del Anuncio",
+                    name: "url_anuncio",
+                    type: "string",
+                    default: "",
+                    displayOptions: { show: { endpoint: ["anuncio_url"] } },
+                    required: true,
+                },
+                {
                     displayName: "Opciones",
                     type: "collection",
                     default: {},
@@ -109,7 +118,7 @@ class AulaVirtual {
     }
     async execute() {
         var _a, _b, _c, _d;
-        const result = [];
+        const results = [];
         for (let i = 0; i < this.getInputData().length; i++) {
             const jsess = this.getNodeParameter("JSESSIONID", i);
             const jroute = this.getNodeParameter("ORA_OTD_JROUTE", i);
@@ -134,7 +143,7 @@ class AulaVirtual {
                             id: (_b = (_a = /tool\/(?<tool>.*?)$/gm.exec(t.url)) === null || _a === void 0 ? void 0 : _a.groups) === null || _b === void 0 ? void 0 : _b.tool,
                         });
                     });
-                    result.push((_b = herramientas === null || herramientas === void 0 ? void 0 : herramientas.map(h => ({ json: h }))) !== null && _b !== void 0 ? _b : []);
+                    results.push((_b = herramientas === null || herramientas === void 0 ? void 0 : herramientas.map(h => ({ json: h }))) !== null && _b !== void 0 ? _b : []);
                     break;
                 }
                 case 'notificaciones': {
@@ -142,7 +151,7 @@ class AulaVirtual {
                         url: "https://aulavirtual.um.es/api/users/me/notifications",
                         headers,
                     });
-                    result.push(notificaciones.map((n) => ({ json: n })));
+                    results.push(notificaciones.map((n) => ({ json: n })));
                     break;
                 }
                 case 'sitios': {
@@ -150,7 +159,7 @@ class AulaVirtual {
                         url: "https://aulavirtual.um.es/api/users/me/sites",
                         headers,
                     });
-                    result.push(sitios.sites.map(s => ({ json: s })));
+                    results.push(sitios.sites.map(s => ({ json: s })));
                     break;
                 }
                 case 'tareas': {
@@ -181,7 +190,7 @@ class AulaVirtual {
                         inicio: luxon_1.DateTime.fromFormat(inicios[i], types_1.dateFormat, { locale: "es" }),
                         fin: luxon_1.DateTime.fromFormat(fines[i], types_1.dateFormat, { locale: "es" }),
                     }));
-                    result.push(tareas.map(t => ({ json: t })));
+                    results.push(tareas.map(t => ({ json: t })));
                     break;
                 }
                 case 'tarea_url': {
@@ -192,12 +201,23 @@ class AulaVirtual {
                     });
                     const clean_res = he_1.default.decode(tarea_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
                     const tarea = (0, utils_1.parseTarea)(clean_res);
-                    result.push([{ json: tarea }]);
+                    results.push([{ json: tarea }]);
+                    break;
+                }
+                case 'anuncio_url': {
+                    const url_anuncio = this.getNodeParameter("url_anuncio", i);
+                    const anuncio_res = await this.helpers.httpRequest({
+                        url: url_anuncio,
+                        headers
+                    });
+                    const clean_res = he_1.default.decode(anuncio_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+                    const anuncio = (0, utils_1.parseAnuncio)(clean_res);
+                    results.push([{ json: anuncio }]);
                     break;
                 }
             }
         }
-        return result;
+        return results;
     }
 }
 exports.AulaVirtual = AulaVirtual;

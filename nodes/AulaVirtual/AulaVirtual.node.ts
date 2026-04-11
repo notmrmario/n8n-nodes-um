@@ -4,7 +4,7 @@ import { IExecuteFunctions, INodeExecutionData, NodeApiError, NodeConnectionType
 import { dateFormat, Endpoint, Sitio } from '../types';
 import { DateTime } from "luxon";
 import he from "he";
-import { parseTarea } from '../utils';
+import { parseAnuncio, parseTarea } from '../utils';
 
 export class AulaVirtual implements INodeType {
 	description: INodeTypeDescription = {
@@ -45,6 +45,7 @@ export class AulaVirtual implements INodeType {
 				type: "options",
 				default: undefined,
 				options: [
+					{ name: "Anuncio Por Url", value: "anuncio_url" },
 					{ name: "Herramientas Del Sitio", value: "herramientas" },
 					{ name: "Notificaciones", value: "notificaciones" },
 					{ name: "Sitios", value: "sitios" },
@@ -86,6 +87,15 @@ export class AulaVirtual implements INodeType {
 				required: true,
 			},
 			{
+				displayName: "URL Del Anuncio",
+				name: "url_anuncio",
+				type: "string",
+				default: "",
+				displayOptions: { show: { endpoint: ["anuncio_url"] } },
+				required: true,
+			},
+			// opciones
+			{
 				displayName: "Opciones",
 				type: "collection",
 				default: {},
@@ -106,7 +116,7 @@ export class AulaVirtual implements INodeType {
 	};
 
 	async execute(this: IExecuteFunctions): Promise<NodeOutput> {
-		const result: INodeExecutionData[][] = [];
+		const results: INodeExecutionData[][] = [];
 
 		for (let i = 0; i < this.getInputData().length; i++) {
 			const jsess = this.getNodeParameter("JSESSIONID", i) as Endpoint;
@@ -133,7 +143,7 @@ export class AulaVirtual implements INodeType {
 						id: /tool\/(?<tool>.*?)$/gm.exec(t.url)?.groups?.tool,
 					}));
 
-					result.push(herramientas?.map(h => ({ json: h })) ?? []);
+					results.push(herramientas?.map(h => ({ json: h })) ?? []);
 					break;
 				}
 				case 'notificaciones': {
@@ -142,7 +152,7 @@ export class AulaVirtual implements INodeType {
 						headers,
 					});
 
-					result.push(notificaciones.map((n: object) => ({ json: n })));
+					results.push(notificaciones.map((n: object) => ({ json: n })));
 					break;
 				}
 				case 'sitios': {
@@ -151,7 +161,7 @@ export class AulaVirtual implements INodeType {
 						headers,
 					});
 
-					result.push(sitios.sites.map(s => ({ json: s })));
+					results.push(sitios.sites.map(s => ({ json: s })));
 					break;
 				}
 				case 'tareas': {
@@ -191,7 +201,7 @@ export class AulaVirtual implements INodeType {
 						fin: DateTime.fromFormat(fines[i]!, dateFormat, { locale: "es" }),
 					}));
 
-					result.push(tareas.map(t => ({ json: t })));
+					results.push(tareas.map(t => ({ json: t })));
 					break;
 				}
 				case 'tarea_url': {
@@ -205,12 +215,28 @@ export class AulaVirtual implements INodeType {
 
 					const tarea = parseTarea(clean_res);
 
-					result.push([{ json: tarea }]);
+					results.push([{ json: tarea }]);
+					break;
+				}
+				case 'anuncio_url': {
+					const url_anuncio = this.getNodeParameter("url_anuncio", i) as string;
+
+					const anuncio_res = await this.helpers.httpRequest({
+						url: url_anuncio,
+						headers
+					});
+
+					const clean_res = he.decode(anuncio_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+
+					// results.push([{ json: { clean_res } }])
+					const anuncio = parseAnuncio(clean_res);
+
+					results.push([{ json: anuncio }]);
 					break;
 				}
 			}
 		}
 
-		return result;
+		return results;
 	}
 }
