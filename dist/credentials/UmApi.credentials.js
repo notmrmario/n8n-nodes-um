@@ -27,7 +27,7 @@ class UmApi {
                 default: "",
             },
             {
-                displayName: 'Token MFA',
+                displayName: 'Token MFA (entrada.um.es)',
                 name: 'mfatoken',
                 type: 'string',
                 typeOptions: {

@@ -1,10 +1,14 @@
 /* eslint-disable @n8n/community-nodes/no-restricted-imports */
+/* eslint-disable @n8n/community-nodes/no-http-request-with-manual-auth */
 
 import { IExecuteFunctions, INodeExecutionData, NodeApiError, NodeConnectionTypes, NodeOperationError, NodeOutput, type INodeType, type INodeTypeDescription } from 'n8n-workflow';
 import { dateFormat, Endpoint, Sitio } from '../types';
 import { DateTime } from "luxon";
+import { parseAnuncio, parseTarea2 } from '../utils';
+import { getUmTokens } from '../umUtils';
+import { UmCreds } from '../../credentials/UmApi.credentials';
 import he from "he";
-import { parseAnuncio, parseTarea } from '../utils';
+import nhp from "node-html-parser";
 
 export class AulaVirtual implements INodeType {
 	description: INodeTypeDescription = {
@@ -13,6 +17,7 @@ export class AulaVirtual implements INodeType {
 		icon: "file:../av.svg",
 		group: ["input", "output"],
 		version: 1,
+		credentials: [{ name: "umApi" }],
 		subtitle: '={{$parameter["endpoint"]}}',
 		description: 'Interact with the Um API',
 		defaults: {
@@ -23,22 +28,6 @@ export class AulaVirtual implements INodeType {
 		outputs: [NodeConnectionTypes.Main],
 		properties: [
 			// globales
-			{
-				displayName: "Token JSESSIONID",
-				name: "JSESSIONID",
-				type: "string",
-				default: "",
-				required: true,
-				hint: "Token JSESSIONID activo",
-			},
-			{
-				displayName: "Token ORA_OTD_JROUTE",
-				name: "ORA_OTD_JROUTE",
-				type: "string",
-				default: "",
-				required: true,
-				hint: "Token ORA_OTD_JROUTE activo",
-			},
 			{
 				displayName: "Endpoint",
 				name: "endpoint",
@@ -117,126 +106,156 @@ export class AulaVirtual implements INodeType {
 
 	async execute(this: IExecuteFunctions): Promise<NodeOutput> {
 		const results: INodeExecutionData[][] = [];
+		const credentials = await this.getCredentials("umApi") as UmCreds;
+		const items = this.getInputData();
+		const tokens = await getUmTokens(this, credentials);
 
-		for (let i = 0; i < this.getInputData().length; i++) {
-			const jsess = this.getNodeParameter("JSESSIONID", i) as Endpoint;
-			const jroute = this.getNodeParameter("ORA_OTD_JROUTE", i) as Endpoint;
-			const endpoint = this.getNodeParameter("endpoint", i) as Endpoint;
+		try {
+			for (let i = 0; i < items.length; i++) {
+				const endpoint = this.getNodeParameter("endpoint", i) as Endpoint;
 
-			const headers = {
-				"Cookie": `JSESSIONID=${jsess}; ORA_OTD_JROUTE=${jroute}`
-			};
+				const headers = {
+					"Cookie": `JSESSIONID=${tokens.JSESSIONID}; ORA_OTD_JROUTE=${tokens.ORA_OTD_JROUTE}`
+				};
 
-			if (endpoint == "ninguno") throw new NodeOperationError(this.getNode(), {}, { message: "Selecciona un endpoint." });
+				if (endpoint == "ninguno") throw new NodeOperationError(this.getNode(), {}, { message: "Selecciona un endpoint." });
 
-			switch (endpoint) {
-				case 'herramientas': {
-					const sitio_id = this.getNodeParameter("site_id", i) as string;
-					const sitios: { sites: Sitio[] } = await this.helpers.httpRequest({
-						url: "https://aulavirtual.um.es/api/users/me/sites",
-						headers,
-					});
+				switch (endpoint) {
+					case 'herramientas': {
+						const sitio_id = this.getNodeParameter("site_id", i) as string;
+						const sitios: { sites: Sitio[] } = await this.helpers.httpRequest({
+							url: "https://aulavirtual.um.es/api/users/me/sites",
+							headers,
+						});
 
-					const herramientas = sitios.sites.find(s => s.siteId === sitio_id)?.tools.map(t => ({
-						titulo: t.title,
-						url: t.url,
-						id: /tool\/(?<tool>.*?)$/gm.exec(t.url)?.groups?.tool,
-					}));
+						const herramientas = sitios.sites.find(s => s.siteId === sitio_id)?.tools.map(t => ({
+							titulo: t.title,
+							url: t.url,
+							id: /tool\/(?<tool>.*?)$/gm.exec(t.url)?.groups?.tool,
+						}));
 
-					results.push(herramientas?.map(h => ({ json: h })) ?? []);
-					break;
-				}
-				case 'notificaciones': {
-					const notificaciones = await this.helpers.httpRequest({
-						url: "https://aulavirtual.um.es/api/users/me/notifications",
-						headers,
-					});
+						results.push(herramientas?.map(h => ({ json: h, pairedItem: items[i].pairedItem })) ?? []);
+						break;
+					}
+					case 'notificaciones': {
+						const notificaciones = await this.helpers.httpRequest({
+							url: "https://aulavirtual.um.es/api/users/me/notifications",
+							headers,
+						});
 
-					results.push(notificaciones.map((n: object) => ({ json: n })));
-					break;
-				}
-				case 'sitios': {
-					const sitios: { sites: Sitio[] } = await this.helpers.httpRequest({
-						url: "https://aulavirtual.um.es/api/users/me/sites",
-						headers,
-					});
+						results.push(notificaciones.map((n: object) => ({ json: n, pairedItem: items[i].pairedItem })));
+						break;
+					}
+					case 'sitios': {
+						const sitios: { sites: Sitio[] } = await this.helpers.httpRequest({
+							url: "https://aulavirtual.um.es/api/users/me/sites",
+							headers,
+						});
 
-					results.push(sitios.sites.map(s => ({ json: s })));
-					break;
-				}
-				case 'tareas': {
-					const tareas_url = this.getNodeParameter("tareas_url", i) as string;
+						results.push(sitios.sites.map(s => ({ json: s, pairedItem: items[i].pairedItem })));
+						break;
+					}
+					case 'tareas': {
+						const tareas_url = this.getNodeParameter("tareas_url", i) as string;
 
-					// resetear la herramienta para que muestre la lista de tareas
-					// no se por que lo hacen asi
-					await this.helpers.httpRequest({
-						url: tareas_url.replace("tool", "tool-reset"),
-						headers,
-					})
+						// resetear la herramienta para que muestre la lista de tareas
+						// no se por que lo hacen asi
+						await this.helpers.httpRequest({
+							url: tareas_url.replace("tool", "tool-reset"),
+							headers,
+						})
 
-					const tareas_res = await this.helpers.httpRequest({
-						url: tareas_url,
-						headers,
-					}) as string;
+						const tareas_res = await this.helpers.httpRequest({
+							url: tareas_url,
+							headers,
+						}) as string;
 
-					const tabla_tareas = /(?<tabla_tareas><table.*?summary=".*?tareas\.">.*?<\/table>)/si.exec(tareas_res)?.groups?.tabla_tareas
-						.replace(/\n|\t/g, "");
-					if (!tabla_tareas) throw new NodeApiError(this.getNode(), {}, { message: "No se ha podido obtener la lista de tareas." });
-					const tabla_tareas_decoded = he.decode(tabla_tareas).replace(/\t|\n/g, "").replace(/"/g, "\"");
+						const tabla_tareas = /(?<tabla_tareas><table.*?summary=".*?tareas\.">.*?<\/table>)/si.exec(tareas_res)?.groups?.tabla_tareas
+							.replace(/\n|\t/g, "");
+						if (!tabla_tareas) throw new NodeApiError(this.getNode(), {}, { message: "No se ha podido obtener la lista de tareas." });
+						const tabla_tareas_decoded = he.decode(tabla_tareas).replace(/\t|\n/g, "").replace(/"/g, "\"");
 
-					const titulos = [...tabla_tareas_decoded.matchAll(
-						/<td headers=.*?"title.*?".*?>.*?<strong>.*?<a.*?href=.*?"(?<url_tarea>.*?)\\?".*?title=.*?"(?<titulo_tarea>.*?)\\?"/gs)]
-						.map(m => m.groups);
-					const estados = [...tabla_tareas_decoded.matchAll(/<td headers="status">(?<estado>.*?)<\/td>/gs)].map(m => m.groups?.estado);
-					const notas = [...tabla_tareas_decoded.matchAll(/<td headers="grade"><span>(?<nota>.*?)<\/span><\/td>/gs)].map(m => m.groups?.nota);
-					const inicios = [...tabla_tareas_decoded.matchAll(/<td headers="openDate".*?>(?<fecha_inicio>.*?)<\/td>/gs)].map(m => m.groups?.fecha_inicio);
-					const fines = [...tabla_tareas_decoded.matchAll(/<td headers="dueDate".*?>.*?>(?<fecha_fin>.*?)<\/span><\/td>/gs)].map(m => m.groups?.fecha_fin);
+						const titulos = [...tabla_tareas_decoded.matchAll(
+							/<td headers=.*?"title.*?".*?>.*?<strong>.*?<a.*?href=.*?"(?<url_tarea>.*?)\\?".*?title=.*?"(?<titulo_tarea>.*?)\\?"/gs)]
+							.map(m => m.groups);
+						const estados = [...tabla_tareas_decoded.matchAll(/<td headers="status">(?<estado>.*?)<\/td>/gs)].map(m => m.groups?.estado);
+						const notas = [...tabla_tareas_decoded.matchAll(/<td headers="grade"><span>(?<nota>.*?)<\/span><\/td>/gs)].map(m => m.groups?.nota);
+						const inicios = [...tabla_tareas_decoded.matchAll(/<td headers="openDate".*?>(?<fecha_inicio>.*?)<\/td>/gs)].map(m => m.groups?.fecha_inicio);
+						const fines = [...tabla_tareas_decoded.matchAll(/<td headers="dueDate".*?>.*?>(?<fecha_fin>.*?)<\/span><\/td>/gs)].map(m => m.groups?.fecha_fin);
 
-					const tareas = titulos.map((t, i) => ({
-						titulo: t!.titulo_tarea,
-						url: t!.url_tarea,
-						estado: estados[i],
-						nota: notas[i],
-						inicio: DateTime.fromFormat(inicios[i]!, dateFormat, { locale: "es" }),
-						fin: DateTime.fromFormat(fines[i]!, dateFormat, { locale: "es" }),
-					}));
+						const tareas = titulos.map((t, i) => ({
+							titulo: t!.titulo_tarea,
+							url: t!.url_tarea,
+							estado: estados[i],
+							nota: notas[i],
+							inicio: DateTime.fromFormat(inicios[i]!, dateFormat, { locale: "es" }),
+							fin: DateTime.fromFormat(fines[i]!, dateFormat, { locale: "es" }),
+						}));
 
-					results.push(tareas.map(t => ({ json: t })));
-					break;
-				}
-				case 'tarea_url': {
-					const url_tarea = this.getNodeParameter("url_tarea", i) as string;
+						results.push(tareas.map(t => ({ json: t, pairedItem: items[i].pairedItem })));
+						break;
+					}
+					case 'tarea_url': {
+						const url_tarea = this.getNodeParameter("url_tarea", i) as string;
 
-					const tarea_res = await this.helpers.httpRequest({
-						url: url_tarea,
-						headers,
-					});
-					const clean_res = he.decode(tarea_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+						const tarea_res = await this.helpers.httpRequest({
+							url: url_tarea,
+							headers,
+						});
+						const clean_res = he.decode(tarea_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
 
-					const tarea = parseTarea(clean_res);
-					
-					if (!results[0]) results[0] = [];
-					results[0].push({ json: tarea });
-					break;
-				}
-				case 'anuncio_url': {
-					const url_anuncio = this.getNodeParameter("url_anuncio", i) as string;
+						const tarea_root = nhp.parse(clean_res);
 
-					const anuncio_res = await this.helpers.httpRequest({
-						url: url_anuncio,
-						headers
-					});
+						if (!results[0]) results[0] = [];
+						if (tarea_root.querySelector("div#honor-pledge-agreement")) { // Cláusula de veracidad
+							const sakai_csrf = tarea_root.querySelector("[name='sakai_csrf_token']")?.getAttribute("value");
+							const assignmentRef = url_tarea.match(/assignmentReference=(.*?)($|&)/)?.[1];
+							const baseUrl = url_tarea.split("?")[0];
+							const body = `eventSubmit_doAccept_assignment_honor_pledge=De+acuerdo&assignmentReference=${assignmentRef}&sakai_csrf_token=${sakai_csrf}`
+							await this.helpers.httpRequest({
+								url: `${baseUrl}?panel=Main`,
+								method: "POST",
+								headers: {
+									...headers,
+									"Content-Type": "aaplication/x-www-form-urlencoded"
+								},
+								body,
+							});
+							const tarea_res2 = await this.helpers.httpRequest({ url: url_tarea, headers });
+							const clean_res2 = he.decode(tarea_res2.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
 
-					const clean_res = he.decode(anuncio_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+							const tarea_root2 = nhp.parse(clean_res2);
 
-					// results.push([{ json: { clean_res } }])
-					const anuncio = parseAnuncio(clean_res);
+							const tarea = parseTarea2(tarea_root2);
+							results[0].push({ json: tarea, pairedItem: items[i].pairedItem });
+						} else {
+							const tarea = parseTarea2(tarea_root);
+							results[0].push({ json: tarea, pairedItem: items[i].pairedItem });
+						}
 
-					if (!results[0]) results[0] = [];
-					results[0].push({ json: anuncio });
-					break;
+						break;
+					}
+					case 'anuncio_url': {
+						const url_anuncio = this.getNodeParameter("url_anuncio", i) as string;
+
+						const anuncio_res = await this.helpers.httpRequest({
+							url: url_anuncio,
+							headers
+						});
+
+						const clean_res = he.decode(anuncio_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+
+						// results.push([{ json: { clean_res } }])
+						const anuncio = parseAnuncio(clean_res);
+
+						if (!results[0]) results[0] = [];
+						results[0].push({ json: anuncio, pairedItem: items[i].pairedItem });
+						break;
+					}
 				}
 			}
+		} catch (e) {
+			if (!this.continueOnFail()) throw e;
 		}
 
 		return results;

@@ -1,0 +1,5 @@
+import { INodeExecutionData, INodeType, INodeTypeDescription, IPollFunctions } from "n8n-workflow";
+export declare class AvTrigger implements INodeType {
+    description: INodeTypeDescription;
+    poll(this: IPollFunctions): Promise<INodeExecutionData[][] | null>;
+}

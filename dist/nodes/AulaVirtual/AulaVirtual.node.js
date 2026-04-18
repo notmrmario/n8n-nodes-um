@@ -7,8 +7,10 @@ exports.AulaVirtual = void 0;
 const n8n_workflow_1 = require("n8n-workflow");
 const types_1 = require("../types");
 const luxon_1 = require("luxon");
-const he_1 = __importDefault(require("he"));
 const utils_1 = require("../utils");
+const umUtils_1 = require("../umUtils");
+const he_1 = __importDefault(require("he"));
+const node_html_parser_1 = __importDefault(require("node-html-parser"));
 class AulaVirtual {
     constructor() {
         this.description = {
@@ -17,6 +19,7 @@ class AulaVirtual {
             icon: "file:../av.svg",
             group: ["input", "output"],
             version: 1,
+            credentials: [{ name: "umApi" }],
             subtitle: '={{$parameter["endpoint"]}}',
             description: 'Interact with the Um API',
             defaults: {
@@ -26,22 +29,6 @@ class AulaVirtual {
             inputs: [n8n_workflow_1.NodeConnectionTypes.Main],
             outputs: [n8n_workflow_1.NodeConnectionTypes.Main],
             properties: [
-                {
-                    displayName: "Token JSESSIONID",
-                    name: "JSESSIONID",
-                    type: "string",
-                    default: "",
-                    required: true,
-                    hint: "Token JSESSIONID activo",
-                },
-                {
-                    displayName: "Token ORA_OTD_JROUTE",
-                    name: "ORA_OTD_JROUTE",
-                    type: "string",
-                    default: "",
-                    required: true,
-                    hint: "Token ORA_OTD_JROUTE activo",
-                },
                 {
                     displayName: "Endpoint",
                     name: "endpoint",
@@ -117,109 +104,139 @@ class AulaVirtual {
         };
     }
     async execute() {
-        var _a, _b, _c, _d;
+        var _a, _b, _c, _d, _e, _f;
         const results = [];
-        for (let i = 0; i < this.getInputData().length; i++) {
-            const jsess = this.getNodeParameter("JSESSIONID", i);
-            const jroute = this.getNodeParameter("ORA_OTD_JROUTE", i);
-            const endpoint = this.getNodeParameter("endpoint", i);
-            const headers = {
-                "Cookie": `JSESSIONID=${jsess}; ORA_OTD_JROUTE=${jroute}`
-            };
-            if (endpoint == "ninguno")
-                throw new n8n_workflow_1.NodeOperationError(this.getNode(), {}, { message: "Selecciona un endpoint." });
-            switch (endpoint) {
-                case 'herramientas': {
-                    const sitio_id = this.getNodeParameter("site_id", i);
-                    const sitios = await this.helpers.httpRequest({
-                        url: "https://aulavirtual.um.es/api/users/me/sites",
-                        headers,
-                    });
-                    const herramientas = (_a = sitios.sites.find(s => s.siteId === sitio_id)) === null || _a === void 0 ? void 0 : _a.tools.map(t => {
-                        var _a, _b;
-                        return ({
-                            titulo: t.title,
-                            url: t.url,
-                            id: (_b = (_a = /tool\/(?<tool>.*?)$/gm.exec(t.url)) === null || _a === void 0 ? void 0 : _a.groups) === null || _b === void 0 ? void 0 : _b.tool,
+        const credentials = await this.getCredentials("umApi");
+        const items = this.getInputData();
+        const tokens = await (0, umUtils_1.getUmTokens)(this, credentials);
+        try {
+            for (let i = 0; i < items.length; i++) {
+                const endpoint = this.getNodeParameter("endpoint", i);
+                const headers = {
+                    "Cookie": `JSESSIONID=${tokens.JSESSIONID}; ORA_OTD_JROUTE=${tokens.ORA_OTD_JROUTE}`
+                };
+                if (endpoint == "ninguno")
+                    throw new n8n_workflow_1.NodeOperationError(this.getNode(), {}, { message: "Selecciona un endpoint." });
+                switch (endpoint) {
+                    case 'herramientas': {
+                        const sitio_id = this.getNodeParameter("site_id", i);
+                        const sitios = await this.helpers.httpRequest({
+                            url: "https://aulavirtual.um.es/api/users/me/sites",
+                            headers,
                         });
-                    });
-                    results.push((_b = herramientas === null || herramientas === void 0 ? void 0 : herramientas.map(h => ({ json: h }))) !== null && _b !== void 0 ? _b : []);
-                    break;
-                }
-                case 'notificaciones': {
-                    const notificaciones = await this.helpers.httpRequest({
-                        url: "https://aulavirtual.um.es/api/users/me/notifications",
-                        headers,
-                    });
-                    results.push(notificaciones.map((n) => ({ json: n })));
-                    break;
-                }
-                case 'sitios': {
-                    const sitios = await this.helpers.httpRequest({
-                        url: "https://aulavirtual.um.es/api/users/me/sites",
-                        headers,
-                    });
-                    results.push(sitios.sites.map(s => ({ json: s })));
-                    break;
-                }
-                case 'tareas': {
-                    const tareas_url = this.getNodeParameter("tareas_url", i);
-                    await this.helpers.httpRequest({
-                        url: tareas_url.replace("tool", "tool-reset"),
-                        headers,
-                    });
-                    const tareas_res = await this.helpers.httpRequest({
-                        url: tareas_url,
-                        headers,
-                    });
-                    const tabla_tareas = (_d = (_c = /(?<tabla_tareas><table.*?summary=".*?tareas\.">.*?<\/table>)/si.exec(tareas_res)) === null || _c === void 0 ? void 0 : _c.groups) === null || _d === void 0 ? void 0 : _d.tabla_tareas.replace(/\n|\t/g, "");
-                    if (!tabla_tareas)
-                        throw new n8n_workflow_1.NodeApiError(this.getNode(), {}, { message: "No se ha podido obtener la lista de tareas." });
-                    const tabla_tareas_decoded = he_1.default.decode(tabla_tareas).replace(/\t|\n/g, "").replace(/"/g, "\"");
-                    const titulos = [...tabla_tareas_decoded.matchAll(/<td headers=.*?"title.*?".*?>.*?<strong>.*?<a.*?href=.*?"(?<url_tarea>.*?)\\?".*?title=.*?"(?<titulo_tarea>.*?)\\?"/gs)]
-                        .map(m => m.groups);
-                    const estados = [...tabla_tareas_decoded.matchAll(/<td headers="status">(?<estado>.*?)<\/td>/gs)].map(m => { var _a; return (_a = m.groups) === null || _a === void 0 ? void 0 : _a.estado; });
-                    const notas = [...tabla_tareas_decoded.matchAll(/<td headers="grade"><span>(?<nota>.*?)<\/span><\/td>/gs)].map(m => { var _a; return (_a = m.groups) === null || _a === void 0 ? void 0 : _a.nota; });
-                    const inicios = [...tabla_tareas_decoded.matchAll(/<td headers="openDate".*?>(?<fecha_inicio>.*?)<\/td>/gs)].map(m => { var _a; return (_a = m.groups) === null || _a === void 0 ? void 0 : _a.fecha_inicio; });
-                    const fines = [...tabla_tareas_decoded.matchAll(/<td headers="dueDate".*?>.*?>(?<fecha_fin>.*?)<\/span><\/td>/gs)].map(m => { var _a; return (_a = m.groups) === null || _a === void 0 ? void 0 : _a.fecha_fin; });
-                    const tareas = titulos.map((t, i) => ({
-                        titulo: t.titulo_tarea,
-                        url: t.url_tarea,
-                        estado: estados[i],
-                        nota: notas[i],
-                        inicio: luxon_1.DateTime.fromFormat(inicios[i], types_1.dateFormat, { locale: "es" }),
-                        fin: luxon_1.DateTime.fromFormat(fines[i], types_1.dateFormat, { locale: "es" }),
-                    }));
-                    results.push(tareas.map(t => ({ json: t })));
-                    break;
-                }
-                case 'tarea_url': {
-                    const url_tarea = this.getNodeParameter("url_tarea", i);
-                    const tarea_res = await this.helpers.httpRequest({
-                        url: url_tarea,
-                        headers,
-                    });
-                    const clean_res = he_1.default.decode(tarea_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
-                    const tarea = (0, utils_1.parseTarea)(clean_res);
-                    if (!results[0])
-                        results[0] = [];
-                    results[0].push({ json: tarea });
-                    break;
-                }
-                case 'anuncio_url': {
-                    const url_anuncio = this.getNodeParameter("url_anuncio", i);
-                    const anuncio_res = await this.helpers.httpRequest({
-                        url: url_anuncio,
-                        headers
-                    });
-                    const clean_res = he_1.default.decode(anuncio_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
-                    const anuncio = (0, utils_1.parseAnuncio)(clean_res);
-                    if (!results[0])
-                        results[0] = [];
-                    results[0].push({ json: anuncio });
-                    break;
+                        const herramientas = (_a = sitios.sites.find(s => s.siteId === sitio_id)) === null || _a === void 0 ? void 0 : _a.tools.map(t => {
+                            var _a, _b;
+                            return ({
+                                titulo: t.title,
+                                url: t.url,
+                                id: (_b = (_a = /tool\/(?<tool>.*?)$/gm.exec(t.url)) === null || _a === void 0 ? void 0 : _a.groups) === null || _b === void 0 ? void 0 : _b.tool,
+                            });
+                        });
+                        results.push((_b = herramientas === null || herramientas === void 0 ? void 0 : herramientas.map(h => ({ json: h, pairedItem: items[i].pairedItem }))) !== null && _b !== void 0 ? _b : []);
+                        break;
+                    }
+                    case 'notificaciones': {
+                        const notificaciones = await this.helpers.httpRequest({
+                            url: "https://aulavirtual.um.es/api/users/me/notifications",
+                            headers,
+                        });
+                        results.push(notificaciones.map((n) => ({ json: n, pairedItem: items[i].pairedItem })));
+                        break;
+                    }
+                    case 'sitios': {
+                        const sitios = await this.helpers.httpRequest({
+                            url: "https://aulavirtual.um.es/api/users/me/sites",
+                            headers,
+                        });
+                        results.push(sitios.sites.map(s => ({ json: s, pairedItem: items[i].pairedItem })));
+                        break;
+                    }
+                    case 'tareas': {
+                        const tareas_url = this.getNodeParameter("tareas_url", i);
+                        await this.helpers.httpRequest({
+                            url: tareas_url.replace("tool", "tool-reset"),
+                            headers,
+                        });
+                        const tareas_res = await this.helpers.httpRequest({
+                            url: tareas_url,
+                            headers,
+                        });
+                        const tabla_tareas = (_d = (_c = /(?<tabla_tareas><table.*?summary=".*?tareas\.">.*?<\/table>)/si.exec(tareas_res)) === null || _c === void 0 ? void 0 : _c.groups) === null || _d === void 0 ? void 0 : _d.tabla_tareas.replace(/\n|\t/g, "");
+                        if (!tabla_tareas)
+                            throw new n8n_workflow_1.NodeApiError(this.getNode(), {}, { message: "No se ha podido obtener la lista de tareas." });
+                        const tabla_tareas_decoded = he_1.default.decode(tabla_tareas).replace(/\t|\n/g, "").replace(/"/g, "\"");
+                        const titulos = [...tabla_tareas_decoded.matchAll(/<td headers=.*?"title.*?".*?>.*?<strong>.*?<a.*?href=.*?"(?<url_tarea>.*?)\\?".*?title=.*?"(?<titulo_tarea>.*?)\\?"/gs)]
+                            .map(m => m.groups);
+                        const estados = [...tabla_tareas_decoded.matchAll(/<td headers="status">(?<estado>.*?)<\/td>/gs)].map(m => { var _a; return (_a = m.groups) === null || _a === void 0 ? void 0 : _a.estado; });
+                        const notas = [...tabla_tareas_decoded.matchAll(/<td headers="grade"><span>(?<nota>.*?)<\/span><\/td>/gs)].map(m => { var _a; return (_a = m.groups) === null || _a === void 0 ? void 0 : _a.nota; });
+                        const inicios = [...tabla_tareas_decoded.matchAll(/<td headers="openDate".*?>(?<fecha_inicio>.*?)<\/td>/gs)].map(m => { var _a; return (_a = m.groups) === null || _a === void 0 ? void 0 : _a.fecha_inicio; });
+                        const fines = [...tabla_tareas_decoded.matchAll(/<td headers="dueDate".*?>.*?>(?<fecha_fin>.*?)<\/span><\/td>/gs)].map(m => { var _a; return (_a = m.groups) === null || _a === void 0 ? void 0 : _a.fecha_fin; });
+                        const tareas = titulos.map((t, i) => ({
+                            titulo: t.titulo_tarea,
+                            url: t.url_tarea,
+                            estado: estados[i],
+                            nota: notas[i],
+                            inicio: luxon_1.DateTime.fromFormat(inicios[i], types_1.dateFormat, { locale: "es" }),
+                            fin: luxon_1.DateTime.fromFormat(fines[i], types_1.dateFormat, { locale: "es" }),
+                        }));
+                        results.push(tareas.map(t => ({ json: t, pairedItem: items[i].pairedItem })));
+                        break;
+                    }
+                    case 'tarea_url': {
+                        const url_tarea = this.getNodeParameter("url_tarea", i);
+                        const tarea_res = await this.helpers.httpRequest({
+                            url: url_tarea,
+                            headers,
+                        });
+                        const clean_res = he_1.default.decode(tarea_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+                        const tarea_root = node_html_parser_1.default.parse(clean_res);
+                        if (!results[0])
+                            results[0] = [];
+                        if (tarea_root.querySelector("div#honor-pledge-agreement")) {
+                            const sakai_csrf = (_e = tarea_root.querySelector("[name='sakai_csrf_token']")) === null || _e === void 0 ? void 0 : _e.getAttribute("value");
+                            const assignmentRef = (_f = url_tarea.match(/assignmentReference=(.*?)($|&)/)) === null || _f === void 0 ? void 0 : _f[1];
+                            const baseUrl = url_tarea.split("?")[0];
+                            const body = `eventSubmit_doAccept_assignment_honor_pledge=De+acuerdo&assignmentReference=${assignmentRef}&sakai_csrf_token=${sakai_csrf}`;
+                            await this.helpers.httpRequest({
+                                url: `${baseUrl}?panel=Main`,
+                                method: "POST",
+                                headers: {
+                                    ...headers,
+                                    "Content-Type": "aaplication/x-www-form-urlencoded"
+                                },
+                                body,
+                            });
+                            const tarea_res2 = await this.helpers.httpRequest({ url: url_tarea, headers });
+                            const clean_res2 = he_1.default.decode(tarea_res2.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+                            const tarea_root2 = node_html_parser_1.default.parse(clean_res2);
+                            const tarea = (0, utils_1.parseTarea2)(tarea_root2);
+                            results[0].push({ json: tarea, pairedItem: items[i].pairedItem });
+                        }
+                        else {
+                            const tarea = (0, utils_1.parseTarea2)(tarea_root);
+                            results[0].push({ json: tarea, pairedItem: items[i].pairedItem });
+                        }
+                        break;
+                    }
+                    case 'anuncio_url': {
+                        const url_anuncio = this.getNodeParameter("url_anuncio", i);
+                        const anuncio_res = await this.helpers.httpRequest({
+                            url: url_anuncio,
+                            headers
+                        });
+                        const clean_res = he_1.default.decode(anuncio_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+                        const anuncio = (0, utils_1.parseAnuncio)(clean_res);
+                        if (!results[0])
+                            results[0] = [];
+                        results[0].push({ json: anuncio, pairedItem: items[i].pairedItem });
+                        break;
+                    }
                 }
             }
+        }
+        catch (e) {
+            if (!this.continueOnFail())
+                throw e;
         }
         return results;
     }

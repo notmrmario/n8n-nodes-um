@@ -3,8 +3,8 @@
 import { DateTime } from "luxon";
 import { dateFormat } from "./types";
 import TurnDown from "turndown";
-import nhp from "node-html-parser";
-import type { IDataObject } from "n8n-workflow";
+import nhp, { HTMLElement } from "node-html-parser";
+import { type IDataObject } from "n8n-workflow";
 
 export const td = new TurnDown({
     headingStyle: "atx",
@@ -34,13 +34,13 @@ export function keys<T extends object>(o: T): (keyof T)[] {
 export function parseTarea(html: string) {
     let result: IDataObject = {};
 
-    if (nhp.parse(html).querySelectorAll("div.container-fluid").length > 1) { // Tipo A
-        const root = nhp.parse(html).querySelectorAll("div.container-fluid").at(-1);
+    if (!nhp.parse(html).querySelector("div.portletBody.container-fluid")) { // Tipo A
+        const root = nhp.parse(html).querySelector("div.portletBody.container-fluid")!;
         const conf = td.turndown(root?.querySelector("div>div>dl")?.innerHTML);
 
         if (root?.querySelector("p.instruction")) { // No hay adjuntos
             const desc = td.turndown(root?.querySelector("div>p")?.innerHTML);
-            result =  {
+            result = {
                 ...result,
                 creado_por: /Creado por:\n+([^\n]*)/si.exec(conf)?.[1],
                 inicio: DateTime.fromFormat(/Abierta\n+([^\n]*)/si.exec(conf)![1], dateFormat, { locale: "es" }),
@@ -71,8 +71,7 @@ export function parseTarea(html: string) {
             ?.querySelector("table")
             ?.querySelectorAll("tr")
             .map(el => [el.querySelector("th")!.innerText.trim(), el.querySelector("td")!.innerText.trim()])
-            // @ts-expect-error error de tipo que se puede ignorar
-            .reduce((o, x) => { o[x[0]] = x[1]; return o }, {});
+            .reduce((o, x) => { o[x[0]] = x[1]; return o }, {} as { [key: string]: string });
 
         const desc = root?.querySelectorAll("h4").map(el => td.turndown(el.nextElementSibling!.innerHTML));
         const instrucciones = desc?.[0] ?? "";
@@ -87,6 +86,99 @@ export function parseTarea(html: string) {
         };
     }
     return result;
+}
+
+export function parseTarea2(document: HTMLElement) {
+    if (document.querySelector("div:has(>div#StudentAssignmentCurrent>table)")) { // tarea entregada
+        const root = document.querySelector("div:has(>div#StudentAssignmentCurrent>table)")!;
+
+        const titulo = root.querySelector("h3")?.innerText.trim();
+        const cabecera = root.querySelectorAll("div#StudentAssignmentCurrent>table tr")
+            .reduce((o, el) => {
+                if (el.querySelector("th")) {
+                    const tryDate = DateTime.fromFormat(el.querySelector("td")!.innerText.trim(), dateFormat, { locale: "es" });
+                    if (tryDate.isValid) o[el.querySelector("th")!.innerText.trim()] = tryDate.toString();
+                    else o[el.querySelector("th")!.innerText.trim()] = el.querySelector("td")!.innerText.trim();
+                }
+                return o;
+            }, {} as { [key: string]: string });
+        const [instruccionesEl, adjuntosEnviadosEl] = root.querySelectorAll("div.textPanel.borderPanel");
+        const instrucciones = td.turndown(instruccionesEl?.innerHTML);
+        const adjuntosEnviados = adjuntosEnviadosEl?.querySelectorAll("li")
+            .map(el => [el.innerText.trim().replace(/ {2,}/g, " "), el.querySelector("a")?.getAttribute("href")]);
+        const recursosTarea =
+            root.querySelector(":has(>h4) > p")?.innerText.trim() == "No hay adjuntos todavía" ?
+                null :
+                root.querySelectorAll("ul:has(~ hr.itemSeparator) li")
+                    .map(el => [el.innerText.trim().replace(/ {2,}/g, " "), el.querySelector("a")?.getAttribute("href")]);
+
+        return {
+            titulo,
+            cabecera,
+            instrucciones,
+            recursosTarea,
+            adjuntosEnviados,
+            estado: "entregada",
+        };
+    } else if (document.querySelector("div:has(>div#StudentAssignmentCurrent>div)")) { // tarea sin entregar
+        const root = document.querySelector("div:has(>div#StudentAssignmentCurrent>div)")!;
+
+        const titulo = root.querySelector("h3")?.innerText.trim();
+        const cabecera = root.querySelectorAll("div#StudentAssignmentCurrent div.row")
+            .reduce((o, el) => {
+                if (el.querySelector("div.itemSummaryHeader")) {
+                    const tryDate = DateTime.fromFormat(el.querySelector("div.itemSummaryValue")!.innerText.trim(), dateFormat, { locale: "es" });
+                    if (tryDate.isValid) o[el.querySelector("div.itemSummaryHeader")!.innerText.trim()] = tryDate.toString();
+                    else o[el.querySelector("div.itemSummaryHeader")!.innerText.trim()] = el.querySelector("div.itemSummaryValue")!.innerText.trim();
+                }
+                return o;
+            }, {} as { [key: string]: string });
+        const instruccionesEl = root.querySelectorAll("div.textPanel")?.[0];
+        const instrucciones = instruccionesEl ? td.turndown(instruccionesEl.innerHTML) : null;
+        const recursosTarea =
+            root.querySelector(":has(>h4) > p")?.innerText.trim() == "No hay adjuntos todavía" ?
+                null :
+                root.querySelectorAll("ul li")
+                    .map(el => [el.innerText.trim().replace(/ {2,}/g, " "), el.querySelector("a")?.getAttribute("href")]);
+
+        return {
+            titulo,
+            cabecera,
+            instrucciones,
+            recursosTarea,
+            estado: "no entregada",
+        };
+    } else if (document.querySelectorAll("div.container-fluid")?.length > 1) { // tarea no entregable
+        const root = document.querySelectorAll("div.container-fluid").at(-1)!;
+
+        const titulo = root.querySelector("p")?.innerText.replace(/.*?"(.*?)".*/g, "$1");
+        const tablaCabecera = [root.querySelectorAll("dl.row dt"), root.querySelectorAll("dl.row dd")];
+        const cabecera: { [key: string]: string } = {};
+        for (let i = 0; i < tablaCabecera[0].length; i++) {
+            const tryDate = DateTime.fromFormat(tablaCabecera[1][i].innerText.trim(), dateFormat, { locale: "es" });
+            if (tryDate.isValid) cabecera[tablaCabecera[0][i].innerText.trim()] = tryDate.toString();
+            else cabecera[tablaCabecera[0][i].innerText.trim()] = tablaCabecera[1][i].innerText.trim();
+        }
+
+        const instruccionesRecursosEl = root.querySelector("div:has(+ hr)");
+        const instrucciones = instruccionesRecursosEl ? td.turndown(instruccionesRecursosEl.innerText) : null;
+
+        const recursosTarea =
+            instruccionesRecursosEl?.querySelector(":has(>h4) > p")?.innerText.trim() == "No hay adjuntos todavía" ?
+                [] :
+                root.querySelector("ul")?.children
+                    .map(el => [el.innerText.trim().replace(/ {2,}/g, " "), el.querySelector("a")?.getAttribute("href")]);
+
+        return {
+            titulo,
+            cabecera,
+            instrucciones,
+            recursosTarea,
+            estado: "no entregable",
+        };
+    } else return {
+        error: "tipo (formato) de tarea desconocido"
+    }
 }
 
 export function parseAnuncio(html: string) {

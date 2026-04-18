@@ -1,4 +1,5 @@
 import type { DateTimeMaybeValid } from "luxon";
+import { IDataObject } from "n8n-workflow";
 export declare const dateFormat = "d MMM yyyy H:mm";
 export declare const SakaiToolType: {
     readonly "sakai.announcements": "Anuncios";
@@ -39,6 +40,10 @@ export type Sitio = {
     }[];
     url: string;
 };
+export interface IStaticDataHeaders extends IDataObject {
+    JSESSIONID: string;
+    ORA_OTD_JROUTE: string;
+}
 export type Tarea = {
     titulo: string;
     url: string;
@@ -51,7 +56,7 @@ export type Herramienta = {
     url: string;
     id: string;
 };
-export type Notificacion = {
+export interface Notificacion extends IDataObject {
     id: number;
     fromUser: string;
     toUser: string;
@@ -67,4 +72,4 @@ export type Notificacion = {
     fromDisplayName: string;
     formattedEventDate: string | DateTimeMaybeValid;
     siteTitle: string;
-};
+}

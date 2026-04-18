@@ -1,0 +1,5 @@
+allowBuilds:
+  eslint-plugin-n8n-nodes-base: true
+  isolated-vm: true
+  protobufjs: true
+  unrs-resolver: true
