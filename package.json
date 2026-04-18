@@ -36,8 +36,6 @@
     "nodes": [
       "dist/nodes/UmTokens/UmTokens.node.js",
       "dist/nodes/AulaVirtual/AulaVirtual.node.js",
-      "dist/nodes/FiltroNovedades/FiltroNovedades.node.js",
-      "dist/nodes/FiltroTipo/FiltroTipo.node.js",
       "dist/nodes/AvTrigger/AvTrigger.node.js"
     ]
   },
