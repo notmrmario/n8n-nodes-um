@@ -125,7 +125,15 @@ class AvTrigger {
         if (!active)
             result = result.map(r => r ? [r[random ? Math.floor(Math.random() * r.length) : 0]] : []);
         if (evento == "tarea" || evento == "examen" || evento == "anuncio")
-            result = await Promise.all(result.map(async (r) => await Promise.all(r.map(async (n) => ({ ...n, json: { ...n.json, extra: await (0, umUtils_1.getAVInfo)(this, credentials, evento, n.json.url) } })))));
+            for (let i = 0; i < result.length; i++)
+                for (let j = 0; j < result[i].length; j++) {
+                    const n = result[i][j];
+                    result[i][j] = {
+                        ...n,
+                        json: { ...n.json, extra: await (0, umUtils_1.getAVInfo)(this, credentials, evento, n.json.url) },
+                        pairedItem: { item: 0 },
+                    };
+                }
         return result;
     }
 }
