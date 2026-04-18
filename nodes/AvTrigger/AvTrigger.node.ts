@@ -93,8 +93,10 @@ export class AvTrigger implements INodeType {
         let notificaciones = await getAVEndpoint(this, "/users/me/notifications", credentials) as Notificacion[];
         if (ids_filtro.length) notificaciones = notificaciones.filter(n => ids_filtro.includes(n.siteId));
 
-        if (!staticData.seenIds) staticData.seenIds = [];
-        else if (active) notificaciones = notificaciones.filter(n => (staticData.seenIds as number[])!.includes(n.id));
+        if (!staticData.seenIds) { // primera ejecucion
+            staticData.seenIds = [];
+            if (active) return [];
+        } else if (active) notificaciones = notificaciones.filter(n => (staticData.seenIds as number[])!.includes(n.id));
 
         let result: INodeExecutionData[][];
 
