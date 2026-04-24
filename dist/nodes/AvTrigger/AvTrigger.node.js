@@ -19,6 +19,20 @@ class AvTrigger {
             },
             group: ["trigger"],
             inputs: [],
+            subtitle: `={{(() => {
+            switch ($parameter["evento"]) {
+                case "anuncio":
+                    return "Anuncios";
+                case "examen":
+                    return "Exámenes";
+                case "notificacion":
+                    return "Notificaciones";
+                case "tarea":
+                    return "Tareas";
+                case "llamamiento":
+                    return "Llamamientos";
+            }    
+        })()}}`,
             outputs: `={{(() => {
             switch ($parameter["evento"]) {
                 case "anuncio":
@@ -37,9 +51,14 @@ class AvTrigger {
                     ];
                 case "tarea":
                     return [
-                        { type: "main", displayName: "Tareas nuevas" },
-                        { type: "main", displayName: "Notas tareas" },
-                        { type: "main", displayName: "Acceso tareas modificado" },
+                        { type: "main", displayName: "Nuevas" },
+                        { type: "main", displayName: "Calificaciones" },
+                        { type: "main", displayName: "Acceso modificado" },
+                        ];
+                case "llamamiento":
+                    return [
+                        { type: "main", displayName: "Nuevos" },
+                        { type: "main", displayName: "Anulados" },
                     ];
             }    
         })()}}`,
@@ -53,6 +72,7 @@ class AvTrigger {
                     options: [
                         { name: "Anuncios", value: "anuncio" },
                         { name: "Examenes", value: "examen" },
+                        { name: "Llamamientos", value: "llamamiento" },
                         { name: "Notificaciones (Todo)", value: "notificacion" },
                         { name: "Tareas", value: "tarea" },
                     ]
@@ -89,10 +109,13 @@ class AvTrigger {
         let notificaciones = await (0, umUtils_1.getAVEndpoint)(this, "/users/me/notifications", credentials);
         if (ids_filtro.length)
             notificaciones = notificaciones.filter(n => ids_filtro.includes(n.siteId));
-        if (!staticData.seenIds)
+        if (!staticData.seenIds) {
             staticData.seenIds = [];
+            if (active)
+                return [];
+        }
         else if (active)
-            notificaciones = notificaciones.filter(n => staticData.seenIds.includes(n.id));
+            notificaciones = notificaciones.filter(n => !staticData.seenIds.includes(n.id));
         let result;
         switch (evento) {
             case "notificacion": {
@@ -101,8 +124,12 @@ class AvTrigger {
             }
             case "anuncio": {
                 result = [
-                    notificaciones.filter(n => umUtils_1.notiEventType["nuevo_anuncio"].includes(n.event)).map(n => ({ json: n })),
-                    notificaciones.filter(n => umUtils_1.notiEventType["anuncio_modificado"].some(id => n.event.startsWith(id))).map(n => ({ json: n })),
+                    notificaciones.filter(n => umUtils_1.notiEventType["nuevo_anuncio"].includes(n.event) &&
+                        !n.title.toLowerCase().startsWith("llamamiento de examen") &&
+                        !n.title.toLowerCase().startsWith("anulación de llamamiento de examen")).map(n => ({ json: n })),
+                    notificaciones.filter(n => umUtils_1.notiEventType["anuncio_modificado"].some(id => n.event.startsWith(id)) &&
+                        !n.title.toLowerCase().startsWith("llamamiento de examen") &&
+                        !n.title.toLowerCase().startsWith("anulación de llamamiento de examen")).map(n => ({ json: n })),
                 ];
                 break;
             }
@@ -121,10 +148,18 @@ class AvTrigger {
                 ];
                 break;
             }
+            case "llamamiento": {
+                result = [
+                    notificaciones.filter(n => umUtils_1.notiEventType["nuevo_anuncio"].includes(n.event) && n.title.toLowerCase().startsWith("llamamiento de examen")).map(n => ({ json: n })),
+                    notificaciones.filter(n => umUtils_1.notiEventType["nuevo_anuncio"].includes(n.event) && n.title.toLowerCase().startsWith("anulación de llamamiento de examen")).map(n => ({ json: n })),
+                ];
+                break;
+            }
         }
+        staticData.seenIds = notificaciones.map(n => n.id);
         if (!active)
             result = result.map(r => r ? [r[random ? Math.floor(Math.random() * r.length) : 0]] : []);
-        if (evento == "tarea" || evento == "examen" || evento == "anuncio")
+        if (evento != "notificacion")
             for (let i = 0; i < result.length; i++)
                 for (let j = 0; j < result[i].length; j++) {
                     const n = result[i][j];

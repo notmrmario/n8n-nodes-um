@@ -22,6 +22,20 @@ export class AvTrigger implements INodeType {
         },
         group: ["trigger"],
         inputs: [],
+        subtitle: `={{(() => {
+            switch ($parameter["evento"]) {
+                case "anuncio":
+                    return "Anuncios";
+                case "examen":
+                    return "Exámenes";
+                case "notificacion":
+                    return "Notificaciones";
+                case "tarea":
+                    return "Tareas";
+                case "llamamiento":
+                    return "Llamamientos";
+            }    
+        })()}}`,
         outputs: `={{(() => {
             switch ($parameter["evento"]) {
                 case "anuncio":
@@ -40,9 +54,14 @@ export class AvTrigger implements INodeType {
                     ];
                 case "tarea":
                     return [
-                        { type: "main", displayName: "Tareas nuevas" },
-                        { type: "main", displayName: "Notas tareas" },
-                        { type: "main", displayName: "Acceso tareas modificado" },
+                        { type: "main", displayName: "Nuevas" },
+                        { type: "main", displayName: "Calificaciones" },
+                        { type: "main", displayName: "Acceso modificado" },
+                        ];
+                case "llamamiento":
+                    return [
+                        { type: "main", displayName: "Nuevos" },
+                        { type: "main", displayName: "Anulados" },
                     ];
             }    
         })()}}`,
@@ -56,6 +75,7 @@ export class AvTrigger implements INodeType {
                 options: [
                     { name: "Anuncios", value: "anuncio" },
                     { name: "Examenes", value: "examen" },
+                    { name: "Llamamientos", value: "llamamiento" },
                     { name: "Notificaciones (Todo)", value: "notificacion" },
                     { name: "Tareas", value: "tarea" },
                 ]
@@ -96,7 +116,7 @@ export class AvTrigger implements INodeType {
         if (!staticData.seenIds) { // primera ejecucion
             staticData.seenIds = [];
             if (active) return [];
-        } else if (active) notificaciones = notificaciones.filter(n => (staticData.seenIds as number[])!.includes(n.id));
+        } else if (active) notificaciones = notificaciones.filter(n => !(staticData.seenIds as number[])!.includes(n.id));
 
         let result: INodeExecutionData[][];
 
@@ -108,10 +128,14 @@ export class AvTrigger implements INodeType {
             case "anuncio": {
                 result = [
                     notificaciones.filter(n =>
-                        notiEventType["nuevo_anuncio"].includes(n.event)).map(n =>
+                        notiEventType["nuevo_anuncio"].includes(n.event) &&
+                        !n.title.toLowerCase().startsWith("llamamiento de examen") &&
+                        !n.title.toLowerCase().startsWith("anulación de llamamiento de examen")).map(n =>
                             ({ json: n })),
                     notificaciones.filter(n =>
-                        notiEventType["anuncio_modificado"].some(id => n.event.startsWith(id))).map(n =>
+                        notiEventType["anuncio_modificado"].some(id => n.event.startsWith(id)) &&
+                        !n.title.toLowerCase().startsWith("llamamiento de examen") &&
+                        !n.title.toLowerCase().startsWith("anulación de llamamiento de examen")).map(n =>
                             ({ json: n })),
                 ];
                 break;
@@ -141,10 +165,23 @@ export class AvTrigger implements INodeType {
                 ];
                 break;
             }
+            case "llamamiento": {
+                result = [
+                    notificaciones.filter(n =>
+                        notiEventType["nuevo_anuncio"].includes(n.event) && n.title.toLowerCase().startsWith("llamamiento de examen")).map(n =>
+                            ({ json: n })),
+                    notificaciones.filter(n =>
+                        notiEventType["nuevo_anuncio"].includes(n.event) && n.title.toLowerCase().startsWith("anulación de llamamiento de examen")).map(n =>
+                            ({ json: n })),
+                ]
+                break;
+            }
         }
 
+        staticData.seenIds = notificaciones.map(n => n.id);
+
         if (!active) result = result.map(r => r ? [r[random ? Math.floor(Math.random() * r.length) : 0]] : []);
-        if (evento == "tarea" || evento == "examen" || evento == "anuncio") for (let i = 0; i < result.length; i++)
+        if (evento != "notificacion") for (let i = 0; i < result.length; i++)
             for (let j = 0; j < result[i].length; j++) {
                 const n = result[i][j];
                 result[i][j] = {
@@ -162,4 +199,5 @@ type Eventos =
     | "anuncio"
     | "examen"
     | "notificacion"
-    | "tarea";
+    | "tarea"
+    | "llamamiento";

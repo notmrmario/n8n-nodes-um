@@ -4,8 +4,7 @@
 import { IExecuteFunctions, INodeExecutionData, NodeApiError, NodeConnectionTypes, NodeOperationError, NodeOutput, type INodeType, type INodeTypeDescription } from 'n8n-workflow';
 import { dateFormat, Endpoint, Sitio } from '../types';
 import { DateTime } from "luxon";
-import { parseAnuncio, parseTarea2 } from '../utils';
-import { getUmTokens } from '../umUtils';
+import { parseAnuncio, parseTarea2, getUmTokens } from '../umUtils';
 import { UmCreds } from '../../credentials/UmApi.credentials';
 import he from "he";
 import nhp from "node-html-parser";

@@ -7,7 +7,6 @@ exports.AulaVirtual = void 0;
 const n8n_workflow_1 = require("n8n-workflow");
 const types_1 = require("../types");
 const luxon_1 = require("luxon");
-const utils_1 = require("../utils");
 const umUtils_1 = require("../umUtils");
 const he_1 = __importDefault(require("he"));
 const node_html_parser_1 = __importDefault(require("node-html-parser"));
@@ -209,11 +208,11 @@ class AulaVirtual {
                             const tarea_res2 = await this.helpers.httpRequest({ url: url_tarea, headers });
                             const clean_res2 = he_1.default.decode(tarea_res2.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
                             const tarea_root2 = node_html_parser_1.default.parse(clean_res2);
-                            const tarea = (0, utils_1.parseTarea2)(tarea_root2);
+                            const tarea = (0, umUtils_1.parseTarea2)(tarea_root2);
                             results[0].push({ json: tarea, pairedItem: items[i].pairedItem });
                         }
                         else {
-                            const tarea = (0, utils_1.parseTarea2)(tarea_root);
+                            const tarea = (0, umUtils_1.parseTarea2)(tarea_root);
                             results[0].push({ json: tarea, pairedItem: items[i].pairedItem });
                         }
                         break;
@@ -225,7 +224,7 @@ class AulaVirtual {
                             headers
                         });
                         const clean_res = he_1.default.decode(anuncio_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
-                        const anuncio = (0, utils_1.parseAnuncio)(clean_res);
+                        const anuncio = (0, umUtils_1.parseAnuncio)(clean_res);
                         if (!results[0])
                             results[0] = [];
                         results[0].push({ json: anuncio, pairedItem: items[i].pairedItem });
