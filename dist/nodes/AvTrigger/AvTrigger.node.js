@@ -90,30 +90,48 @@ class AvTrigger {
                     placeholder: "ID"
                 },
                 {
-                    displayName: "Entrada Aleatoria",
-                    name: "noti_random",
-                    type: "boolean",
-                    default: false,
-                    description: "Mostrar una entrada aleatoria en lugar de la más reciente (solo en modo de prueba)",
-                }
+                    displayName: "Opciones De Prueba",
+                    description: "Opciones de modo de prueba (no surten efecto cuando se publica el workflow)",
+                    type: "collection",
+                    name: "opciones_prueba",
+                    default: [],
+                    options: [
+                        {
+                            displayName: "Entrada Aleatoria",
+                            name: "random",
+                            type: "boolean",
+                            default: false,
+                            description: "Mostrar una entrada aleatoria en lugar de la más reciente (solo en modo de prueba)",
+                        },
+                        {
+                            displayName: "Reducir Entradas",
+                            name: "salida_unica",
+                            type: "boolean",
+                            default: true,
+                            description: "Mostrar una única salida en lugar de todas las que cumplan los filtros (solo en modo de prueba)"
+                        },
+                    ]
+                },
             ]
         };
     }
     async poll() {
+        var _a, _b;
         const credentials = await this.getCredentials("umApi");
         const evento = this.getNodeParameter("evento");
         const ids_filtro = this.getNodeParameter("sitios_ids_filtro");
         const staticData = this.getWorkflow().active ? this.getWorkflowStaticData("node") : inactiveNodeStaticData;
         const active = this.getWorkflow().active;
-        const random = this.getNodeParameter("noti_random");
+        const opciones_prueba = this.getNodeParameter("opciones_prueba", {});
+        const random = (_a = opciones_prueba.random) !== null && _a !== void 0 ? _a : false;
+        const salida_unica = (_b = opciones_prueba.salida_unica) !== null && _b !== void 0 ? _b : true;
+        const primera_ejecucion_activa = active && !staticData.seenIds;
         let notificaciones = await (0, umUtils_1.getAVEndpoint)(this, "/users/me/notifications", credentials);
         if (ids_filtro.length)
             notificaciones = notificaciones.filter(n => ids_filtro.includes(n.siteId));
-        if (!staticData.seenIds) {
+        const todosLosIds = notificaciones.map(n => n.id);
+        if (primera_ejecucion_activa)
             staticData.seenIds = [];
-            if (active)
-                return [];
-        }
         else if (active)
             notificaciones = notificaciones.filter(n => !staticData.seenIds.includes(n.id));
         let result;
@@ -156,8 +174,10 @@ class AvTrigger {
                 break;
             }
         }
-        staticData.seenIds = notificaciones.map(n => n.id);
-        if (!active)
+        staticData.seenIds = todosLosIds;
+        if (primera_ejecucion_activa)
+            return [];
+        if (!active && salida_unica)
             result = result.map(r => r ? [r[random ? Math.floor(Math.random() * r.length) : 0]] : []);
         if (evento != "notificacion")
             for (let i = 0; i < result.length; i++)

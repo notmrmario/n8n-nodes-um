@@ -93,12 +93,28 @@ export class AvTrigger implements INodeType {
                 placeholder: "ID"
             },
             {
-                displayName: "Entrada Aleatoria",
-                name: "noti_random",
-                type: "boolean",
-                default: false,
-                description: "Mostrar una entrada aleatoria en lugar de la más reciente (solo en modo de prueba)",
-            }
+                displayName: "Opciones De Prueba",
+                description: "Opciones de modo de prueba (no surten efecto cuando se publica el workflow)",
+                type: "collection",
+                name: "opciones_prueba",
+                default: [],
+                options: [
+                    {
+                        displayName: "Entrada Aleatoria",
+                        name: "random",
+                        type: "boolean",
+                        default: false,
+                        description: "Mostrar una entrada aleatoria en lugar de la más reciente (solo en modo de prueba)",
+                    },
+                    {
+                        displayName: "Reducir Entradas",
+                        name: "salida_unica",
+                        type: "boolean",
+                        default: true,
+                        description: "Mostrar una única salida en lugar de todas las que cumplan los filtros (solo en modo de prueba)"
+                    },
+                ]
+            },
         ]
     };
 
@@ -108,15 +124,22 @@ export class AvTrigger implements INodeType {
         const ids_filtro = this.getNodeParameter("sitios_ids_filtro") as string[];
         const staticData = this.getWorkflow().active ? this.getWorkflowStaticData("node") : inactiveNodeStaticData;
         const active = this.getWorkflow().active;
-        const random = this.getNodeParameter("noti_random");
+        const opciones_prueba = this.getNodeParameter("opciones_prueba", {}) as {
+            random?: boolean;
+            salida_unica?: boolean;
+        };
+        const random = opciones_prueba.random ?? false;
+        const salida_unica = opciones_prueba.salida_unica ?? true;
+
+        const primera_ejecucion_activa = active && !staticData.seenIds;
 
         let notificaciones = await getAVEndpoint(this, "/users/me/notifications", credentials) as Notificacion[];
         if (ids_filtro.length) notificaciones = notificaciones.filter(n => ids_filtro.includes(n.siteId));
 
-        if (!staticData.seenIds) { // primera ejecucion
-            staticData.seenIds = [];
-            if (active) return [];
-        } else if (active) notificaciones = notificaciones.filter(n => !(staticData.seenIds as number[])!.includes(n.id));
+        const todosLosIds = notificaciones.map(n => n.id); // ← snapshot antes de filtrar
+
+        if (primera_ejecucion_activa) staticData.seenIds = [];
+        else if (active) notificaciones = notificaciones.filter(n => !(staticData.seenIds as number[]).includes(n.id));
 
         let result: INodeExecutionData[][];
 
@@ -178,9 +201,11 @@ export class AvTrigger implements INodeType {
             }
         }
 
-        staticData.seenIds = notificaciones.map(n => n.id);
+        staticData.seenIds = todosLosIds;
 
-        if (!active) result = result.map(r => r ? [r[random ? Math.floor(Math.random() * r.length) : 0]] : []);
+        if (primera_ejecucion_activa) return [];
+
+        if (!active && salida_unica) result = result.map(r => r ? [r[random ? Math.floor(Math.random() * r.length) : 0]] : []);
         if (evento != "notificacion") for (let i = 0; i < result.length; i++)
             for (let j = 0; j < result[i].length; j++) {
                 const n = result[i][j];

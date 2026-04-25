@@ -177,7 +177,7 @@ export async function getAVInfo(node: IPollFunctions | IExecuteFunctions, creden
     switch (item) {
         case "tarea": {
             const tarea_res = await node.helpers.httpRequest({ url, headers });
-            const clean_res = he.decode(tarea_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+            const clean_res = he.decode(tarea_res.replace(/<script.*?<\/script>/gsi, "").replace(/\r|\n|\t/g, "")).trim();
 
             const tarea_root = nhp.parse(clean_res);
 
@@ -196,7 +196,7 @@ export async function getAVInfo(node: IPollFunctions | IExecuteFunctions, creden
                     body,
                 });
                 const tarea_res2 = await node.helpers.httpRequest({ url, headers });
-                const clean_res2 = he.decode(tarea_res2.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+                const clean_res2 = he.decode(tarea_res2.replace(/<script.*?<\/script>/gsi, "").replace(/\r|\n|\t/g, "")).trim();
 
                 const tarea_root2 = nhp.parse(clean_res2);
 
@@ -209,12 +209,12 @@ export async function getAVInfo(node: IPollFunctions | IExecuteFunctions, creden
         }
         case "anuncio": {
             const anuncio_res = await node.helpers.httpRequest({ url, headers });
-            const clean_res = he.decode(anuncio_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+            const clean_res = he.decode(anuncio_res.replace(/<script.*?<\/script>/gsi, "").replace(/\r|\n|\t/g, "")).trim();
             return parseAnuncio(clean_res);
         }
         case "llamamiento": {
             const llamamiento_res = await node.helpers.httpRequest({ url, headers });
-            const clean_res = he.decode(llamamiento_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+            const clean_res = he.decode(llamamiento_res.replace(/<script.*?<\/script>/gsi, "").replace(/\r|\n|\t/g, "")).trim();
             const root = nhp.parse(clean_res).querySelector("div.portletBody")!;
             return parseLlamamiento(root);
 
@@ -399,10 +399,10 @@ export function parseLlamamiento(document: nhp.HTMLElement): IDataObject {
     const mensaje = document.querySelector("div.message-body")?.innerText.trim();
 
     /* eslint-disable no-useless-escape */
-    const fechaStr = mensaje!.match(/- Fecha: ([0-9\/]+)$/m)?.[1].trim();
-    const horaStr = mensaje!.match(/- Hora: (.*?)$/m)?.[1].trim();
+    const fechaStr = mensaje?.match(/- Fecha: ([0-9\/]+)$/m)?.[1].trim();
+    const horaStr = mensaje?.match(/- Hora: (.*?)$/m)?.[1].trim();
     const inicio = DateTime.fromFormat(`${fechaStr} ${horaStr}`, "d/M/yyyy H:mm");
-    const duracion = mensaje!.match(/- Duración: (?<horas>\d+) horas( (?<minutos>\d+) minutos)? ?$/mu)?.groups as {
+    const duracion = mensaje?.match(/- Duración: (?<horas>\d+) horas( (?<minutos>\d+) minutos)? ?$/mu)?.groups as {
         horas?: string | undefined,
         minutos?: string | undefined,
     };

@@ -193,7 +193,7 @@ async function getAVInfo(node, credentials, item, url) {
     switch (item) {
         case "tarea": {
             const tarea_res = await node.helpers.httpRequest({ url, headers });
-            const clean_res = he_1.default.decode(tarea_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+            const clean_res = he_1.default.decode(tarea_res.replace(/<script.*?<\/script>/gsi, "").replace(/\r|\n|\t/g, "")).trim();
             const tarea_root = nhp.parse(clean_res);
             if (tarea_root.querySelector("div#honor-pledge-agreement")) {
                 const sakai_csrf = (_a = tarea_root.querySelector("[name='sakai_csrf_token']")) === null || _a === void 0 ? void 0 : _a.getAttribute("value");
@@ -210,7 +210,7 @@ async function getAVInfo(node, credentials, item, url) {
                     body,
                 });
                 const tarea_res2 = await node.helpers.httpRequest({ url, headers });
-                const clean_res2 = he_1.default.decode(tarea_res2.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+                const clean_res2 = he_1.default.decode(tarea_res2.replace(/<script.*?<\/script>/gsi, "").replace(/\r|\n|\t/g, "")).trim();
                 const tarea_root2 = nhp.parse(clean_res2);
                 const tarea = parseTarea2(tarea_root2);
                 return tarea;
@@ -222,12 +222,12 @@ async function getAVInfo(node, credentials, item, url) {
         }
         case "anuncio": {
             const anuncio_res = await node.helpers.httpRequest({ url, headers });
-            const clean_res = he_1.default.decode(anuncio_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+            const clean_res = he_1.default.decode(anuncio_res.replace(/<script.*?<\/script>/gsi, "").replace(/\r|\n|\t/g, "")).trim();
             return parseAnuncio(clean_res);
         }
         case "llamamiento": {
             const llamamiento_res = await node.helpers.httpRequest({ url, headers });
-            const clean_res = he_1.default.decode(llamamiento_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
+            const clean_res = he_1.default.decode(llamamiento_res.replace(/<script.*?<\/script>/gsi, "").replace(/\r|\n|\t/g, "")).trim();
             const root = nhp.parse(clean_res).querySelector("div.portletBody");
             return parseLlamamiento(root);
         }
@@ -393,10 +393,10 @@ function parseLlamamiento(document) {
     var _a, _b, _c, _d, _e;
     const titulo = (_a = document.querySelector("div.page-header")) === null || _a === void 0 ? void 0 : _a.innerText.trim();
     const mensaje = (_b = document.querySelector("div.message-body")) === null || _b === void 0 ? void 0 : _b.innerText.trim();
-    const fechaStr = (_c = mensaje.match(/- Fecha: ([0-9\/]+)$/m)) === null || _c === void 0 ? void 0 : _c[1].trim();
-    const horaStr = (_d = mensaje.match(/- Hora: (.*?)$/m)) === null || _d === void 0 ? void 0 : _d[1].trim();
+    const fechaStr = (_c = mensaje === null || mensaje === void 0 ? void 0 : mensaje.match(/- Fecha: ([0-9\/]+)$/m)) === null || _c === void 0 ? void 0 : _c[1].trim();
+    const horaStr = (_d = mensaje === null || mensaje === void 0 ? void 0 : mensaje.match(/- Hora: (.*?)$/m)) === null || _d === void 0 ? void 0 : _d[1].trim();
     const inicio = luxon_1.DateTime.fromFormat(`${fechaStr} ${horaStr}`, "d/M/yyyy H:mm");
-    const duracion = (_e = mensaje.match(/- Duración: (?<horas>\d+) horas( (?<minutos>\d+) minutos)? ?$/mu)) === null || _e === void 0 ? void 0 : _e.groups;
+    const duracion = (_e = mensaje === null || mensaje === void 0 ? void 0 : mensaje.match(/- Duración: (?<horas>\d+) horas( (?<minutos>\d+) minutos)? ?$/mu)) === null || _e === void 0 ? void 0 : _e.groups;
     let fin = luxon_1.DateTime.fromISO(inicio.toISO());
     if (duracion === null || duracion === void 0 ? void 0 : duracion.horas)
         fin = fin.plus({ hours: parseInt(duracion.horas) });
