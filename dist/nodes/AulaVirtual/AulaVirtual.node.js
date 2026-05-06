@@ -9,7 +9,6 @@ const types_1 = require("../types");
 const luxon_1 = require("luxon");
 const umUtils_1 = require("../umUtils");
 const he_1 = __importDefault(require("he"));
-const node_html_parser_1 = __importDefault(require("node-html-parser"));
 class AulaVirtual {
     constructor() {
         this.description = {
@@ -103,7 +102,7 @@ class AulaVirtual {
         };
     }
     async execute() {
-        var _a, _b, _c, _d, _e, _f;
+        var _a, _b, _c, _d;
         const results = [];
         const credentials = await this.getCredentials("umApi");
         const items = this.getInputData();
@@ -183,38 +182,10 @@ class AulaVirtual {
                     }
                     case 'tarea_url': {
                         const url_tarea = this.getNodeParameter("url_tarea", i);
-                        const tarea_res = await this.helpers.httpRequest({
-                            url: url_tarea,
-                            headers,
-                        });
-                        const clean_res = he_1.default.decode(tarea_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
-                        const tarea_root = node_html_parser_1.default.parse(clean_res);
+                        const tarea = await (0, umUtils_1.getAVInfo)(this, credentials, "tarea", url_tarea);
                         if (!results[0])
                             results[0] = [];
-                        if (tarea_root.querySelector("div#honor-pledge-agreement")) {
-                            const sakai_csrf = (_e = tarea_root.querySelector("[name='sakai_csrf_token']")) === null || _e === void 0 ? void 0 : _e.getAttribute("value");
-                            const assignmentRef = (_f = url_tarea.match(/assignmentReference=(.*?)($|&)/)) === null || _f === void 0 ? void 0 : _f[1];
-                            const baseUrl = url_tarea.split("?")[0];
-                            const body = `eventSubmit_doAccept_assignment_honor_pledge=De+acuerdo&assignmentReference=${assignmentRef}&sakai_csrf_token=${sakai_csrf}`;
-                            await this.helpers.httpRequest({
-                                url: `${baseUrl}?panel=Main`,
-                                method: "POST",
-                                headers: {
-                                    ...headers,
-                                    "Content-Type": "aaplication/x-www-form-urlencoded"
-                                },
-                                body,
-                            });
-                            const tarea_res2 = await this.helpers.httpRequest({ url: url_tarea, headers });
-                            const clean_res2 = he_1.default.decode(tarea_res2.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
-                            const tarea_root2 = node_html_parser_1.default.parse(clean_res2);
-                            const tarea = (0, umUtils_1.parseTarea2)(tarea_root2);
-                            results[0].push({ json: tarea, pairedItem: items[i].pairedItem });
-                        }
-                        else {
-                            const tarea = (0, umUtils_1.parseTarea2)(tarea_root);
-                            results[0].push({ json: tarea, pairedItem: items[i].pairedItem });
-                        }
+                        results[0].push({ json: tarea, pairedItem: items[i].pairedItem });
                         break;
                     }
                     case 'anuncio_url': {

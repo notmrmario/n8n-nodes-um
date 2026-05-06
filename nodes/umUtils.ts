@@ -185,25 +185,26 @@ export async function getAVInfo(node: IPollFunctions | IExecuteFunctions, creden
                 const sakai_csrf = tarea_root.querySelector("[name='sakai_csrf_token']")?.getAttribute("value");
                 const assignmentRef = url.match(/assignmentReference=(.*?)($|&)/)?.[1];
                 const baseUrl = url.split("?")[0];
-                const body = `eventSubmit_doAccept_assignment_honor_pledge=De+acuerdo&assignmentReference=${assignmentRef}&sakai_csrf_token=${sakai_csrf}`
+                const body = `eventSubmit_doAccept_assignment_honor_pledge=De+acuerdo&assignmentReference=${assignmentRef}&sakai_csrf_token=${sakai_csrf}`;
                 await node.helpers.httpRequest({
                     url: `${baseUrl}?panel=Main`,
                     method: "POST",
                     headers: {
                         ...headers,
-                        "Content-Type": "aaplication/x-www-form-urlencoded"
+                        "Content-Type": "application/x-www-form-urlencoded"
                     },
                     body,
+                    returnFullResponse: true,
                 });
                 const tarea_res2 = await node.helpers.httpRequest({ url, headers });
                 const clean_res2 = he.decode(tarea_res2.replace(/<script.*?<\/script>/gsi, "").replace(/\r|\n|\t/g, "")).trim();
 
                 const tarea_root2 = nhp.parse(clean_res2);
 
-                const tarea = parseTarea2(tarea_root2);
+                const tarea = { ...parseTarea2(tarea_root2) };
                 return tarea;
             } else {
-                const tarea = parseTarea2(tarea_root);
+                const tarea = { ...parseTarea2(tarea_root) };
                 return tarea;
             }
         }

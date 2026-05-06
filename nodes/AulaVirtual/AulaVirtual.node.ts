@@ -4,10 +4,9 @@
 import { IExecuteFunctions, INodeExecutionData, NodeApiError, NodeConnectionTypes, NodeOperationError, NodeOutput, type INodeType, type INodeTypeDescription } from 'n8n-workflow';
 import { dateFormat, Endpoint, Sitio } from '../types';
 import { DateTime } from "luxon";
-import { parseAnuncio, parseTarea2, getUmTokens } from '../umUtils';
+import { parseAnuncio, getUmTokens, getAVInfo } from '../umUtils';
 import { UmCreds } from '../../credentials/UmApi.credentials';
 import he from "he";
-import nhp from "node-html-parser";
 
 export class AulaVirtual implements INodeType {
 	description: INodeTypeDescription = {
@@ -196,42 +195,11 @@ export class AulaVirtual implements INodeType {
 					}
 					case 'tarea_url': {
 						const url_tarea = this.getNodeParameter("url_tarea", i) as string;
-
-						const tarea_res = await this.helpers.httpRequest({
-							url: url_tarea,
-							headers,
-						});
-						const clean_res = he.decode(tarea_res.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
-
-						const tarea_root = nhp.parse(clean_res);
+						const tarea = await getAVInfo(this, credentials, "tarea", url_tarea);
 
 						if (!results[0]) results[0] = [];
-						if (tarea_root.querySelector("div#honor-pledge-agreement")) { // Cláusula de veracidad
-							const sakai_csrf = tarea_root.querySelector("[name='sakai_csrf_token']")?.getAttribute("value");
-							const assignmentRef = url_tarea.match(/assignmentReference=(.*?)($|&)/)?.[1];
-							const baseUrl = url_tarea.split("?")[0];
-							const body = `eventSubmit_doAccept_assignment_honor_pledge=De+acuerdo&assignmentReference=${assignmentRef}&sakai_csrf_token=${sakai_csrf}`
-							await this.helpers.httpRequest({
-								url: `${baseUrl}?panel=Main`,
-								method: "POST",
-								headers: {
-									...headers,
-									"Content-Type": "aaplication/x-www-form-urlencoded"
-								},
-								body,
-							});
-							const tarea_res2 = await this.helpers.httpRequest({ url: url_tarea, headers });
-							const clean_res2 = he.decode(tarea_res2.replace(/<script.*?<\/script>/gsi, "").replace(/\n|\t/g, "")).trim();
-
-							const tarea_root2 = nhp.parse(clean_res2);
-
-							const tarea = parseTarea2(tarea_root2);
-							results[0].push({ json: tarea, pairedItem: items[i].pairedItem });
-						} else {
-							const tarea = parseTarea2(tarea_root);
-							results[0].push({ json: tarea, pairedItem: items[i].pairedItem });
-						}
-
+						results[0].push({ json: tarea, pairedItem: items[i].pairedItem });
+						
 						break;
 					}
 					case 'anuncio_url': {
